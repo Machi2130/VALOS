@@ -225,23 +225,20 @@
 
 import axios from "axios";
 
-// Robust API base URL detection — works in local dev, Netlify production, and any future domain
+// This is the CORRECT version — must be exactly like this
 const getApiBase = () => {
-  // Priority 1: Explicit environment variable (set in Netlify, .env, etc.)
   if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL.replace(/\/+$/, ""); // remove trailing slash
+    return process.env.REACT_APP_API_URL.replace(/\/+$/, "");
   }
 
-  // Priority 2: Detect if running on Netlify (production)
   if (typeof window !== "undefined" && window.location.hostname.includes("netlify.app")) {
     return "https://valos-fast-api.onrender.com";
   }
 
-  // Priority 3: Local development fallback
   return "http://127.0.0.1:8000";
 };
 
-const API_BASE = getApiBase() + "/api";
+const API_BASE = getApiBase() + "/api";;
 
 // Setup Axios interceptors (call this once on app startup, e.g., in index.js)
 export const setupAxiosInterceptors = () => {
