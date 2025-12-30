@@ -11,31 +11,37 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    
-    try {
-      // Login function now saves the token automatically
-      await login(username, password);
-      
-      // Verify token was saved
-      const savedToken = localStorage.getItem("token");
-      if (!savedToken) {
-        throw new Error("Token was not saved properly");
-      }
-      
-      console.log("✅ Login successful, token saved");
-      setLoading(false);
-      navigate("/"); // go to dashboard
-    } catch (err) {
-      console.error("❌ Login error:", err);
-      setLoading(false);
-      setError(
-        err.response?.data?.detail || "Login failed. Check username/password."
-      );
+  e.preventDefault();
+  setError("");
+  setLoading(true);
+
+  try {
+    // Get the full response from login()
+    const response = await login(username, password);
+
+    // Check the actual response data — this is 100% reliable
+    if (response && response.access_token) {
+      // Token is already saved inside login(), but safe to do again
+      localStorage.setItem("token", response.access_token);
+      localStorage.setItem("username", username);
+
+      console.log("✅ Login successful — redirecting to dashboard");
+      navigate("/");
+    } else {
+      throw new Error("No access token received from server");
     }
-  };
+  } catch (err) {
+    console.error("❌ Login error:", err);
+    setError(
+      err.detail ||
+      err.message ||
+      err?.response?.data?.detail ||
+      "Login failed. Check username/password."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="login-page">
