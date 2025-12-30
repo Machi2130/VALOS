@@ -225,14 +225,14 @@
 
 import axios from "axios";
 
-// Robust API base URL detection
+// Robust API base URL detection — works in local dev, Netlify production, and any future domain
 const getApiBase = () => {
-  // Priority 1: Explicit env var (Netlify production)
+  // Priority 1: Explicit environment variable (set in Netlify, .env, etc.)
   if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL.replace(/\/+$/, "");
+    return process.env.REACT_APP_API_URL.replace(/\/+$/, ""); // remove trailing slash
   }
 
-  // Priority 2: Detect if running on Netlify domain
+  // Priority 2: Detect if running on Netlify (production)
   if (typeof window !== "undefined" && window.location.hostname.includes("netlify.app")) {
     return "https://valos-fast-api.onrender.com";
   }
@@ -243,9 +243,9 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase() + "/api";
 
-// Setup Axios interceptors
+// Setup Axios interceptors (call this once on app startup, e.g., in index.js)
 export const setupAxiosInterceptors = () => {
-  // Request interceptor: add Bearer token
+  // Add Bearer token to every request
   axios.interceptors.request.use(
     (config) => {
       const token = localStorage.getItem("token");
@@ -257,7 +257,7 @@ export const setupAxiosInterceptors = () => {
     (error) => Promise.reject(error)
   );
 
-  // Response interceptor: handle 401 unauthorized
+  // Handle 401 Unauthorized → clear token and redirect to login
   axios.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -276,12 +276,15 @@ export const setupAxiosInterceptors = () => {
 // AUTH
 export async function login(username, password) {
   try {
-    const form = new FormData();
-    form.append("username", username);
-    form.append("password", password);
+    // FastAPI OAuth2PasswordRequestForm expects form-urlencoded data
+    const payload = new URLSearchParams();
+    payload.append("username", username);
+    payload.append("password", password);
 
-    const res = await axios.post(`${API_BASE}/auth/login/`, form, {
-      headers: { "Content-Type": "multipart/form-data" },
+    const res = await axios.post(`${API_BASE}/auth/login/`, payload, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
     });
 
     if (res.data.access_token) {
@@ -291,8 +294,8 @@ export async function login(username, password) {
 
     return res.data;
   } catch (error) {
-    console.error("Login failed:", error);
-    throw error.response?.data || error.message;
+    console.error("Login failed:", error.response?.data || error);
+    throw error.response?.data || { detail: "Invalid username or password" };
   }
 }
 
@@ -318,22 +321,20 @@ export async function logout() {
   try {
     await axios.post(`${API_BASE}/auth/logout/`);
   } catch (error) {
-    console.warn("Logout failed:", error);
+    console.warn("Logout endpoint failed:", error);
   } finally {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
   }
 }
 
-// SALES LEADS - Updated for pagination
+// SALES LEADS
 export async function getSalesLeads(params = {}) {
   try {
     const { skip = 0, limit = 50, status, location, search } = params;
-
     const res = await axios.get(`${API_BASE}/leads/`, {
-      params: { skip, limit, status, location, search }
+      params: { skip, limit, status, location, search },
     });
-
     return res.data;
   } catch (error) {
     throw error.response?.data || error.message;
@@ -413,15 +414,13 @@ export async function createPackaging(payload) {
   }
 }
 
-// COSTINGS - Updated for pagination
+// COSTINGS
 export async function getCostings(params = {}) {
   try {
     const { skip = 0, limit = 50, project_code, status, search } = params;
-
     const res = await axios.get(`${API_BASE}/costings/`, {
-      params: { skip, limit, project_code, status, search }
+      params: { skip, limit, project_code, status, search },
     });
-
     return res.data;
   } catch (error) {
     throw error.response?.data || error.message;
@@ -440,10 +439,9 @@ export async function getCostingById(id) {
 export async function createCosting(form) {
   try {
     const fd = new FormData();
-
     Object.keys(form).forEach((key) => {
       const value = form[key];
-      if (value !== null && value !== undefined && value !== '') {
+      if (value !== null && value !== undefined && value !== "") {
         fd.append(key, value);
       }
     });
@@ -485,15 +483,13 @@ export async function deleteCosting(id) {
   }
 }
 
-// QUOTATIONS - Updated for pagination
+// QUOTATIONS
 export async function getQuotations(params = {}) {
   try {
     const { skip = 0, limit = 50, project_code } = params;
-
     const res = await axios.get(`${API_BASE}/quotations/`, {
-      params: { skip, limit, project_code }
+      params: { skip, limit, project_code },
     });
-
     return res.data;
   } catch (error) {
     throw error.response?.data || error.message;
@@ -539,7 +535,7 @@ export async function deleteQuotation(id) {
 export async function exportQuotationExcel(projectCode) {
   try {
     const res = await axios.get(`${API_BASE}/quotation/${projectCode}/export/`, {
-      responseType: 'blob',
+      responseType: "blob",
     });
     return res.data;
   } catch (error) {
@@ -547,7 +543,7 @@ export async function exportQuotationExcel(projectCode) {
   }
 }
 
-// PROJECT DATA - Fetch all costings + quotations for a project code
+// PROJECT DATA
 export async function getProjectData(projectCode) {
   try {
     const res = await axios.get(`${API_BASE}/project/${projectCode}/`);
