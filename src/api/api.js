@@ -225,7 +225,7 @@
 
 import axios from "axios";
 
-// This is the CORRECT version — must be exactly like this
+// Smart API base URL — works in local dev, Netlify production, and any domain
 const getApiBase = () => {
   if (process.env.REACT_APP_API_URL) {
     return process.env.REACT_APP_API_URL.replace(/\/+$/, "");
@@ -238,12 +238,16 @@ const getApiBase = () => {
   return "http://127.0.0.1:8000";
 };
 
-const API_BASE = getApiBase() + "/api";;
+const API_BASE = getApiBase() + "/api";
 
-// Setup Axios interceptors (call this once on app startup, e.g., in index.js)
+// Create a dedicated Axios instance
+const api = axios.create({
+  baseURL: API_BASE,
+});
+
+// Setup interceptors — call this once in index.js
 export const setupAxiosInterceptors = () => {
-  // Add Bearer token to every request
-  axios.interceptors.request.use(
+  api.interceptors.request.use(
     (config) => {
       const token = localStorage.getItem("token");
       if (token) {
@@ -254,8 +258,7 @@ export const setupAxiosInterceptors = () => {
     (error) => Promise.reject(error)
   );
 
-  // Handle 401 Unauthorized → clear token and redirect to login
-  axios.interceptors.response.use(
+  api.interceptors.response.use(
     (response) => response,
     (error) => {
       if (error.response?.status === 401) {
@@ -273,284 +276,170 @@ export const setupAxiosInterceptors = () => {
 // AUTH
 export async function login(username, password) {
   try {
-    // FastAPI OAuth2PasswordRequestForm expects form-urlencoded data
     const payload = new URLSearchParams();
     payload.append("username", username);
     payload.append("password", password);
 
-    const res = await axios.post(`${API_BASE}/auth/login/`, payload, {
+    const res = await api.post("/auth/login/", payload, {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
     });
 
-    if (res.data.access_token) {
-      localStorage.setItem("token", res.data.access_token);
+    const { access_token } = res.data;
+    if (access_token) {
+      localStorage.setItem("token", access_token);
       localStorage.setItem("username", username);
     }
 
     return res.data;
   } catch (error) {
     console.error("Login failed:", error.response?.data || error);
-    throw error.response?.data || { detail: "Invalid username or password" };
+    throw error.response?.data || { detail: "Invalid credentials" };
   }
+}
+
+// Use `api` for ALL other functions (so token is attached)
+export async function getSalesLeads(params = {}) {
+  const res = await api.get("/leads/", { params });
+  return res.data;
+}
+
+export async function getLeadsStats() {
+  const res = await api.get("/leads/stats/");
+  return res.data;
+}
+
+export async function getLeadById(id) {
+  const res = await api.get(`/leads/${id}/`);
+  return res.data;
+}
+
+export async function createLead(payload) {
+  const res = await api.post("/leads/", payload);
+  return res.data;
+}
+
+export async function updateLead(id, payload) {
+  const res = await api.patch(`/leads/${id}/`, payload);
+  return res.data;
+}
+
+export async function updateLeadStatus(id, status) {
+  const res = await api.patch(`/leads/${id}/status/`, { status });
+  return res.data;
+}
+
+export async function deleteLead(id) {
+  const res = await api.delete(`/leads/${id}/`);
+  return res.data;
+}
+
+export async function getPackaging() {
+  const res = await api.get("/packaging/");
+  return res.data;
+}
+
+export async function createPackaging(payload) {
+  const res = await api.post("/packaging/", payload);
+  return res.data;
+}
+
+export async function getCostings(params = {}) {
+  const res = await api.get("/costings/", { params });
+  return res.data;
+}
+
+export async function getCostingById(id) {
+  const res = await api.get(`/costing/${id}/`);
+  return res.data;
+}
+
+export async function createCosting(form) {
+  const fd = new FormData();
+  Object.keys(form).forEach((key) => {
+    const value = form[key];
+    if (value !== null && value !== undefined && value !== "") {
+      fd.append(key, value);
+    }
+  });
+  const res = await api.post("/costing/new/form/", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+}
+
+export async function updateCosting(id, payload) {
+  const res = await api.put(`/costing/${id}/edit/`, payload);
+  return res.data;
+}
+
+export async function duplicateCosting(id) {
+  const res = await api.post(`/costing/${id}/duplicate/`);
+  return res.data;
+}
+
+export async function deleteCosting(id) {
+  const res = await api.delete(`/costing/${id}/`);
+  return res.data;
+}
+
+export async function getQuotations(params = {}) {
+  const res = await api.get("/quotations/", { params });
+  return res.data;
+}
+
+export async function getQuotationByProjectCode(projectCode) {
+  const res = await api.get(`/quotation/${projectCode}/`);
+  return res.data;
+}
+
+export async function createQuotation(payload) {
+  const res = await api.post("/quotations/", payload);
+  return res.data;
+}
+
+export async function updateQuotation(id, payload) {
+  const res = await api.put(`/quotations/${id}/`, payload);
+  return res.data;
+}
+
+export async function deleteQuotation(id) {
+  const res = await api.delete(`/quotations/${id}/`);
+  return res.data;
+}
+
+export async function exportQuotationExcel(projectCode) {
+  const res = await api.get(`/quotation/${projectCode}/export/`, {
+    responseType: "blob",
+  });
+  return res.data;
+}
+
+export async function getProjectData(projectCode) {
+  const res = await api.get(`/project/${projectCode}/`);
+  return res.data;
 }
 
 export async function registerUser(payload) {
-  try {
-    const res = await axios.post(`${API_BASE}/auth/register/`, payload);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
+  const res = await api.post("/auth/register/", payload);
+  return res.data;
 }
 
 export async function getMe() {
-  try {
-    const res = await axios.get(`${API_BASE}/auth/me/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
+  const res = await api.get("/auth/me/");
+  return res.data;
 }
 
 export async function logout() {
   try {
-    await axios.post(`${API_BASE}/auth/logout/`);
-  } catch (error) {
-    console.warn("Logout endpoint failed:", error);
+    await api.post("/auth/logout/");
   } finally {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
   }
 }
 
-// SALES LEADS
-export async function getSalesLeads(params = {}) {
-  try {
-    const { skip = 0, limit = 50, status, location, search } = params;
-    const res = await axios.get(`${API_BASE}/leads/`, {
-      params: { skip, limit, status, location, search },
-    });
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function getLeadsStats() {
-  try {
-    const res = await axios.get(`${API_BASE}/leads/stats/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function getLeadById(id) {
-  try {
-    const res = await axios.get(`${API_BASE}/leads/${id}/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function createLead(payload) {
-  try {
-    const res = await axios.post(`${API_BASE}/leads/`, payload);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function updateLead(id, payload) {
-  try {
-    const res = await axios.patch(`${API_BASE}/leads/${id}/`, payload);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function updateLeadStatus(id, status) {
-  try {
-    const res = await axios.patch(`${API_BASE}/leads/${id}/status/`, { status });
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function deleteLead(id) {
-  try {
-    const res = await axios.delete(`${API_BASE}/leads/${id}/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-// PACKAGING
-export async function getPackaging() {
-  try {
-    const res = await axios.get(`${API_BASE}/packaging/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function createPackaging(payload) {
-  try {
-    const res = await axios.post(`${API_BASE}/packaging/`, payload);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-// COSTINGS
-export async function getCostings(params = {}) {
-  try {
-    const { skip = 0, limit = 50, project_code, status, search } = params;
-    const res = await axios.get(`${API_BASE}/costings/`, {
-      params: { skip, limit, project_code, status, search },
-    });
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function getCostingById(id) {
-  try {
-    const res = await axios.get(`${API_BASE}/costing/${id}/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function createCosting(form) {
-  try {
-    const fd = new FormData();
-    Object.keys(form).forEach((key) => {
-      const value = form[key];
-      if (value !== null && value !== undefined && value !== "") {
-        fd.append(key, value);
-      }
-    });
-
-    const res = await axios.post(`${API_BASE}/costing/new/form/`, fd, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function updateCosting(id, payload) {
-  try {
-    const res = await axios.put(`${API_BASE}/costing/${id}/edit/`, payload);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function duplicateCosting(id) {
-  try {
-    const res = await axios.post(`${API_BASE}/costing/${id}/duplicate/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function deleteCosting(id) {
-  try {
-    const res = await axios.delete(`${API_BASE}/costing/${id}/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-// QUOTATIONS
-export async function getQuotations(params = {}) {
-  try {
-    const { skip = 0, limit = 50, project_code } = params;
-    const res = await axios.get(`${API_BASE}/quotations/`, {
-      params: { skip, limit, project_code },
-    });
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function getQuotationByProjectCode(projectCode) {
-  try {
-    const res = await axios.get(`${API_BASE}/quotation/${projectCode}/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function createQuotation(payload) {
-  try {
-    const res = await axios.post(`${API_BASE}/quotations/`, payload);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function updateQuotation(id, payload) {
-  try {
-    const res = await axios.put(`${API_BASE}/quotations/${id}/`, payload);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function deleteQuotation(id) {
-  try {
-    const res = await axios.delete(`${API_BASE}/quotations/${id}/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-export async function exportQuotationExcel(projectCode) {
-  try {
-    const res = await axios.get(`${API_BASE}/quotation/${projectCode}/export/`, {
-      responseType: "blob",
-    });
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-// PROJECT DATA
-export async function getProjectData(projectCode) {
-  try {
-    const res = await axios.get(`${API_BASE}/project/${projectCode}/`);
-    return res.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-// UTILITY
 export function isAuthenticated() {
   return !!localStorage.getItem("token");
 }
