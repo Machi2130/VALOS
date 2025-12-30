@@ -1,0 +1,81 @@
+.sales-db {
+    padding: 24px;
+}
+
+.sales-db h1 {
+    margin-bottom: 16px;
+    font-size: 26px;
+}
+
+.sales-search {
+    width: 420px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.sales-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.sales-table thead {
+    background: #f4f6f8;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.sales-table th,
+.sales-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #e5e5e5;
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+.sales-table th {
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    color: #555;
+}
+
+.sales-table tr:hover {
+    background: #fafafa;
+}
+
+.sales-table .strong {
+    font-weight: 600;
+}
+
+.sales-table .notes {
+    max-width: 260px;
+    white-space: normal;
+    line-height: 1.4;
+}
+
+.sales-table a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.sales-table a:hover {
+    text-decoration: underline;
+}
+
+.empty {
+    text-align: center;
+    padding: 30px;
+    color: #777;
+}

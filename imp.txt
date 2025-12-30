@@ -1,0 +1,91 @@
+quotation.js 
+// 🔴 Replace this with your actual costing list API
+const COSTING_API = "https://YOUR_BACKEND_URL/costings/";
+
+// Store all costings
+let allCostings = [];
+
+// Fetch costings
+async function loadCostings() {
+  const res = await fetch(COSTING_API);
+  allCostings = await res.json();
+  populateProjectCodes();
+}
+
+function populateProjectCodes() {
+  const select = document.getElementById("projectCodeSelect");
+  const projectCodes = [...new Set(allCostings.map(c => c.project_code))];
+
+  select.innerHTML = "";
+  projectCodes.forEach(code => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = code;
+    select.appendChild(opt);
+  });
+
+  select.onchange = () => renderQuotation(select.value);
+  renderQuotation(projectCodes[0]);
+}
+
+function renderQuotation(projectCode) {
+  const tbody = document.querySelector("#quotationTable tbody");
+  tbody.innerHTML = "";
+
+  const rows = allCostings.filter(c => c.project_code === projectCode);
+  let grandTotal = 0;
+
+  rows.forEach((c, index) => {
+    const qty = 10000;
+    const total = qty * c.final_unit_price;
+    grandTotal += total;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${c.product_name}</td>
+      <td>${c.sku_ml || "-"}</td>
+      <td>${c.final_unit_price}</td>
+      <td>
+        <input class="qty" type="number" value="${qty}"
+               onchange="updateRowTotal(this, ${c.final_unit_price})">
+      </td>
+      <td class="row-total">₹ ${total.toFixed(2)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("grandTotal").textContent = "₹ " + grandTotal.toFixed(2);
+}
+
+function updateRowTotal(input, unitCost) {
+  const row = input.closest("tr");
+  const totalCell = row.querySelector(".row-total");
+  const qty = Number(input.value);
+
+  const total = qty * unitCost;
+  totalCell.textContent = "₹ " + total.toFixed(2);
+
+  updateGrandTotal();
+}
+
+function updateGrandTotal() {
+  let sum = 0;
+  document.querySelectorAll(".row-total").forEach(td => {
+    sum += Number(td.textContent.replace("₹", ""));
+  });
+  document.getElementById("grandTotal").textContent = "₹ " + sum.toFixed(2);
+}
+
+// INIT
+loadCostings();
+
+and in the the sale performace is need teh count of the leads tracker like how many are in the lsot howw many are in the CONTACTED
+HOW MANY ARE IN THIS 
+Contacted
+Qualified
+Converted
+Lost
+
+
+ALSO TELL WHAY YOU NEED FROM BACKEND FAST API TO DO THIS

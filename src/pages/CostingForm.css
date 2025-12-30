@@ -1,0 +1,116 @@
+/* frontend/src/pages/CostingForm.css */
+
+/* container */
+.costing-form {
+  max-width: 980px;
+  margin: 20px auto;
+  padding: 28px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e6e6e6;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial;
+}
+
+/* title */
+.costing-form h1 {
+  font-size: 34px;
+  margin: 0 0 18px;
+  font-weight: 700;
+}
+
+/* section title */
+.costing-form h3 {
+  margin: 12px 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* grid layout: 2 columns on desktop, 1 on narrow screens */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px 18px;
+  align-items: start;
+}
+
+/* full width row */
+.full {
+  grid-column: 1 / -1;
+}
+
+/* each field wrapper */
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+/* labels */
+.field > label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #222;
+}
+
+/* inputs & textarea */
+.field input[type="text"],
+.field input[type="number"],
+.field select,
+.field textarea {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #cfcfcf;
+  font-size: 15px;
+  background: #fbfbfb;
+  outline: none;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+/* textarea sizing */
+.field textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+/* focus state */
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  border-color: #2f7be6;
+  box-shadow: 0 4px 14px rgba(47, 123, 230, 0.08);
+  background: #fff;
+}
+
+/* actions area */
+.actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 12px;
+}
+
+/* save button */
+.save-btn {
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(26, 115, 232, 0.12);
+}
+.save-btn[disabled] {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* responsive */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .costing-form {
+    padding: 18px;
+  }
+}
