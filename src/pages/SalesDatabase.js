@@ -1,14 +1,29 @@
-// ============================================================================
-// SalesDatabase.js - Updated without inline styles
-// ============================================================================
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSalesLeads, createLead, updateLead, deleteLead } from '../api/api';
 
+// Sanitize payload before sending to backend
+const sanitizeLeadPayload = (lead) => {
+  const {
+    id,
+    created_at,
+    updated_at,
+    ...payload
+  } = lead;
+
+  // Remove null, undefined, and empty string values
+  const cleanPayload = Object.fromEntries(
+    Object.entries(payload).filter(
+      ([_, v]) => v !== null && v !== undefined && v !== ''
+    )
+  );
+
+  return cleanPayload;
+};
+
 export default function SalesDatabase() {
   const queryClient = useQueryClient();
-  
+
   const [page, setPage] = useState(0);
   const [limit] = useState(50);
   const [filters, setFilters] = useState({
@@ -18,11 +33,11 @@ export default function SalesDatabase() {
   });
 
   const [showModal, setShowModal] = useState(false);
-  const [editingLead, setEditingLead] = useState(null);
   const [selectedLead, setSelectedLead] = useState(null);
-  const [profileData, setProfileData] = useState(null);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+  // ✅ FIXED: Include id in initial state
   const [formData, setFormData] = useState({
+    id: null,
     company_name: '',
     owner: '',
     email: '',
@@ -34,6 +49,7 @@ export default function SalesDatabase() {
     notes: ''
   });
 
+  // Fetch leads
   const {
     data,
     isLoading,
@@ -52,34 +68,47 @@ export default function SalesDatabase() {
     keepPreviousData: true,
   });
 
+  // ✅ SINGLE UNIFIED MUTATION - FIXED
   const saveMutation = useMutation({
     mutationFn: (lead) => {
-      if (editingLead) {
-        return updateLead(editingLead.id, lead);
+      const cleanPayload = sanitizeLeadPayload(lead);
+      
+      // ✅ CORRECT: Decide based on DATA (lead.id), not UI state
+      if (lead?.id) {
+        return updateLead(lead.id, cleanPayload);
       }
-      return createLead(lead);
+      return createLead(cleanPayload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['leads']);
+    onSuccess: (updatedLead, variables) => {
+      queryClient.invalidateQueries(['sales-leads']);
       setShowModal(false);
       resetForm();
-      alert(editingLead ? 'Lead updated!' : 'Lead created!');
+      
+      const isUpdate = variables?.id;
+      alert(isUpdate ? 'Lead updated!' : 'Lead created!');
     },
     onError: (error) => {
-      alert('Error: ' + error.message);
+      alert('Error: ' + (error.response?.data?.detail || error.message));
     }
   });
 
+  // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: deleteLead,
+    mutationFn: (id) => deleteLead(id),
     onSuccess: () => {
-      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries(['sales-leads']);
+      closeProfile();
       alert('Lead deleted successfully');
+    },
+    onError: (error) => {
+      alert('Error deleting lead: ' + error.message);
     }
   });
 
+  // ✅ FIXED: Explicit id = null for CREATE mode
   const resetForm = () => {
     setFormData({
+      id: null,
       company_name: '',
       owner: '',
       email: '',
@@ -90,35 +119,32 @@ export default function SalesDatabase() {
       project_code: '',
       notes: ''
     });
-    setEditingLead(null);
   };
 
+  // ✅ FIXED: Edit via modal only
   const handleEdit = (lead) => {
-    setEditingLead(lead);
-    setFormData(lead);
+    setFormData({
+      id: lead.id,  // 🔒 CRITICAL: Keep ID
+      company_name: lead.company_name || '',
+      owner: lead.owner || '',
+      email: lead.email || '',
+      phone: lead.phone || '',
+      status: lead.status || 'new',
+      location: lead.location || '',
+      segment: lead.segment || '',
+      project_code: lead.project_code || '',
+      notes: lead.notes || ''
+    });
+    setSelectedLead(lead);
     setShowModal(true);
   };
 
   const openProfile = (lead) => {
     setSelectedLead(lead);
-    setProfileData({ ...lead });
-    setIsEditingProfile(false);
   };
 
   const closeProfile = () => {
     setSelectedLead(null);
-    setProfileData(null);
-    setIsEditingProfile(false);
-  };
-
-  const handleProfileSave = () => {
-    saveMutation.mutate(profileData, {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['sales-leads']);
-        setSelectedLead(profileData);
-        setIsEditingProfile(false);
-      }
-    });
   };
 
   const handleDelete = (id) => {
@@ -127,8 +153,16 @@ export default function SalesDatabase() {
     }
   };
 
+  // ✅ OPTIONAL: Hard guard to catch ID bugs
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Safety check: if editing but ID is missing, block it
+    if (showModal && !formData.id && selectedLead) {
+      alert("BUG: Editing without ID — blocked");
+      return;
+    }
+
     saveMutation.mutate(formData);
   };
 
@@ -144,7 +178,7 @@ export default function SalesDatabase() {
         <h1>Sales Leads Database</h1>
         <button
           onClick={() => {
-            resetForm();
+            resetForm();  // ✅ id = null → CREATE mode
             setShowModal(true);
           }}
           className="btn btn-primary"
@@ -165,7 +199,7 @@ export default function SalesDatabase() {
           }}
           className="sales-search"
         />
-        
+
         <select
           value={filters.status}
           onChange={(e) => {
@@ -300,206 +334,132 @@ export default function SalesDatabase() {
         </>
       )}
 
-      {/* Profile Panel */}
+      {/* Profile Panel - READ ONLY (No Edit Button) */}
       {selectedLead && (
-        <div className="profile-overlay">
+        <div className="profile-overlay" onClick={(e) => {
+          if (e.target.className === 'profile-overlay') {
+            closeProfile();
+          }
+        }}>
           <div className="profile-panel">
             <div className="profile-header">
-              <h2>{isEditingProfile ? 'Edit Profile' : 'Company Profile'}</h2>
-              <button className="profile-close-btn" onClick={closeProfile}>×</button>
+              <h2>Company Profile</h2>
+              <button 
+                className="profile-close-btn" 
+                onClick={closeProfile}
+              >
+                ×
+              </button>
             </div>
-            
+
             <div className="profile-body">
               <div className="profile-field">
                 <label>Company Name</label>
-                {isEditingProfile ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileData.company_name}
-                    onChange={(e) => setProfileData({ ...profileData, company_name: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value">{selectedLead.company_name}</p>
-                )}
+                <p className="profile-value">{selectedLead.company_name}</p>
               </div>
 
               <div className="profile-field">
                 <label>Owner</label>
-                {isEditingProfile ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileData.owner}
-                    onChange={(e) => setProfileData({ ...profileData, owner: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value">{selectedLead.owner || '-'}</p>
-                )}
+                <p className="profile-value">{selectedLead.owner || '-'}</p>
               </div>
 
               <div className="profile-field">
                 <label>Email</label>
-                {isEditingProfile ? (
-                  <input
-                    type="email"
-                    className="form-input"
-                    value={profileData.email}
-                    onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value">{selectedLead.email || '-'}</p>
-                )}
+                <p className="profile-value">{selectedLead.email || '-'}</p>
               </div>
 
               <div className="profile-field">
                 <label>Phone</label>
-                {isEditingProfile ? (
-                  <input
-                    type="tel"
-                    className="form-input"
-                    value={profileData.phone}
-                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value">{selectedLead.phone || '-'}</p>
-                )}
+                <p className="profile-value">{selectedLead.phone || '-'}</p>
+              </div>
+
+              <div className="profile-field">
+                <label>Website</label>
+                <p className="profile-value">{selectedLead.website || '-'}</p>
               </div>
 
               <div className="profile-field">
                 <label>Status</label>
-                {isEditingProfile ? (
-                  <select
-                    className="form-input"
-                    value={profileData.status}
-                    onChange={(e) => setProfileData({ ...profileData, status: e.target.value })}
-                  >
-                    <option value="new">New</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="qualified">Qualified</option>
-                    <option value="proposal">Proposal</option>
-                    <option value="won">Won</option>
-                    <option value="lost">Lost</option>
-                  </select>
-                ) : (
-                  <span className={`status-badge status-${selectedLead.status}`}>
-                    {selectedLead.status}
-                  </span>
-                )}
+                <span className={`status-badge status-${selectedLead.status}`}>
+                  {selectedLead.status}
+                </span>
               </div>
 
               <div className="profile-field">
                 <label>Location</label>
-                {isEditingProfile ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileData.location}
-                    onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value">{selectedLead.location || '-'}</p>
-                )}
+                <p className="profile-value">{selectedLead.location || '-'}</p>
               </div>
 
               <div className="profile-field">
                 <label>Segment</label>
-                {isEditingProfile ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileData.segment}
-                    onChange={(e) => setProfileData({ ...profileData, segment: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value">{selectedLead.segment || '-'}</p>
-                )}
+                <p className="profile-value">{selectedLead.segment || '-'}</p>
+              </div>
+
+              <div className="profile-field">
+                <label>POC</label>
+                <p className="profile-value">{selectedLead.poc || '-'}</p>
+              </div>
+
+              <div className="profile-field">
+                <label>POC Email</label>
+                <p className="profile-value">{selectedLead.poc_email || '-'}</p>
               </div>
 
               <div className="profile-field">
                 <label>Project Code</label>
-                {isEditingProfile ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileData.project_code || ''}
-                    onChange={(e) => setProfileData({ ...profileData, project_code: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value">{selectedLead.project_code || '-'}</p>
-                )}
+                <p className="profile-value">{selectedLead.project_code || '-'}</p>
+              </div>
+
+              <div className="profile-field">
+                <label>Founding Year</label>
+                <p className="profile-value">{selectedLead.founding_year || '-'}</p>
+              </div>
+
+              <div className="profile-field">
+                <label>Funding Status</label>
+                <p className="profile-value">{selectedLead.funding_status || '-'}</p>
               </div>
 
               <div className="profile-field">
                 <label>Notes</label>
-                {isEditingProfile ? (
-                  <textarea
-                    className="form-input form-textarea"
-                    value={profileData.notes}
-                    onChange={(e) => setProfileData({ ...profileData, notes: e.target.value })}
-                  />
-                ) : (
-                  <p className="profile-value profile-notes">{selectedLead.notes || '-'}</p>
-                )}
+                <p className="profile-value profile-notes">{selectedLead.notes || '-'}</p>
               </div>
             </div>
 
+            {/* ✅ ONLY DELETE BUTTON - NO EDIT */}
             <div className="profile-actions">
-              {isEditingProfile ? (
-                <>
-                  <button 
-                    className="btn btn-primary" 
-                    onClick={handleProfileSave}
-                    disabled={saveMutation.isLoading}
-                  >
-                    {saveMutation.isLoading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                  <button 
-                    className="btn btn-secondary" 
-                    onClick={() => {
-                      setProfileData({ ...selectedLead });
-                      setIsEditingProfile(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button 
-                    className="btn btn-primary" 
-                    onClick={() => setIsEditingProfile(true)}
-                  >
-                    Edit Profile
-                  </button>
-                  <button 
-                    className="btn btn-danger" 
-                    onClick={() => {
-                      if (window.confirm('Delete this lead?')) {
-                        deleteMutation.mutate(selectedLead.id);
-                        closeProfile();
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
-                </>
-              )}
+              <button 
+                type="button"
+                className="btn btn-danger" 
+                onClick={() => {
+                  if (window.confirm('Delete this lead?')) {
+                    deleteMutation.mutate(selectedLead.id);
+                    closeProfile();
+                  }
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal - ONLY WAY TO EDIT */}
       {showModal && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={(e) => {
+          if (e.target.className === 'modal-overlay') {
+            setShowModal(false);
+            resetForm();
+          }
+        }}>
           <div className="modal-content">
-            <h2>{editingLead ? 'Edit Lead' : 'New Lead'}</h2>
-            <form onSubmit={handleSubmit}>
+            <h2>{formData.id ? 'Edit Lead' : 'New Lead'}</h2>
+            <div>
               <input
                 type="text"
                 placeholder="Company Name *"
-                value={formData.company_name}
+                value={formData.company_name || ''}
                 onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
                 required
                 className="form-input"
@@ -507,7 +467,7 @@ export default function SalesDatabase() {
               <input
                 type="text"
                 placeholder="Owner *"
-                value={formData.owner}
+                value={formData.owner || ''}
                 onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
                 required
                 className="form-input"
@@ -515,19 +475,19 @@ export default function SalesDatabase() {
               <input
                 type="email"
                 placeholder="Email"
-                value={formData.email}
+                value={formData.email || ''}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="form-input"
               />
               <input
                 type="tel"
                 placeholder="Phone"
-                value={formData.phone}
+                value={formData.phone || ''}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="form-input"
               />
               <select
-                value={formData.status}
+                value={formData.status || 'new'}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 className="form-input"
               >
@@ -541,32 +501,38 @@ export default function SalesDatabase() {
               <input
                 type="text"
                 placeholder="Location"
-                value={formData.location}
+                value={formData.location || ''}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 className="form-input"
               />
               <input
                 type="text"
                 placeholder="Segment"
-                value={formData.segment}
+                value={formData.segment || ''}
                 onChange={(e) => setFormData({ ...formData, segment: e.target.value })}
                 className="form-input"
               />
               <input
                 type="text"
                 placeholder="Project Code"
-                value={formData.project_code}
+                value={formData.project_code || ''}
                 onChange={(e) => setFormData({ ...formData, project_code: e.target.value })}
                 className="form-input"
               />
               <textarea
                 placeholder="Notes"
-                value={formData.notes}
+                value={formData.notes || ''}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 className="form-input form-textarea"
+                rows={3}
               />
               <div className="modal-actions">
-                <button type="submit" className="btn btn-primary" disabled={saveMutation.isLoading}>
+                <button 
+                  type="button"
+                  onClick={handleSubmit}
+                  className="btn btn-primary" 
+                  disabled={saveMutation.isLoading}
+                >
                   {saveMutation.isLoading ? 'Saving...' : 'Save'}
                 </button>
                 <button
@@ -580,7 +546,7 @@ export default function SalesDatabase() {
                   Cancel
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
